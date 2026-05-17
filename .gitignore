@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.idea/
+output/
+*.obj
+*.exe
+*.dll
+*.pdb
+*.ilk
+.DS_Store
+Thumbs.db
