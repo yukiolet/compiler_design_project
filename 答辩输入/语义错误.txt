@@ -1,0 +1,31 @@
+int read();
+void write(int x);
+int known(int a);
+
+int known(int a)
+{
+    int t;
+    t = a + 1;
+    return t;
+}
+
+int no_return(int n)
+{
+    int r;
+    r = n + 1;
+}
+
+int main()
+{
+    const int LIMIT = 10;
+    int a, b;
+    int a;
+
+    a = read();
+    LIMIT = 20;
+    b = unknown_func(a, 1);
+    c = b + 1;
+    write();
+
+    return b;
+}

@@ -182,6 +182,81 @@ def run_ide_negative_case(window: CompilerQtUI) -> None:
     diagnostics = window.source_diagnostics_box.toPlainText()
     assert_true("缺少分号" in diagnostics, f"IDE should detect missing semicolon\n{diagnostics}")
 
+def run_ide_mapping_cases(window: CompilerQtUI) -> None:
+    semantic_source = """int read();
+void write(int x);
+int known(int a);
+
+int known(int a)
+{
+    int t;
+    t = a + 1;
+    return t;
+}
+
+int no_return(int n)
+{
+    int r;
+    r = n + 1;
+}
+
+int main()
+{
+    const int LIMIT = 10;
+    int a, b;
+    int a;
+
+    a = read();
+    LIMIT = 20;
+    b = unknown_func(a, 1);
+    c = b + 1;
+    write();
+
+    return b;
+}
+"""
+    window.source_editor.setPlainText(semantic_source)
+    window.update_ide_diagnostics()
+    diagnostics = window.source_diagnostics_box.toPlainText()
+    for expected in [
+        "[Semantic] Line 12:",
+        "(code 307)",
+        "[Semantic] Line 22:",
+        "(code 301)",
+        "[Semantic] Line 25:",
+        "(code 309)",
+        "[Semantic] Line 26:",
+        "(code 304)",
+        "[Semantic] Line 27:",
+        "(code 302)",
+        "[Semantic] Line 28:",
+        "(code 305)",
+    ]:
+        assert_true(expected in diagnostics, f"IDE semantic mapping missing {expected}\n{diagnostics}")
+
+    syntax_source = """int main()
+{
+    int a;
+    if (a > 0 {
+        a = 1;
+    return a;
+"""
+    window.source_editor.setPlainText(syntax_source)
+    window.update_ide_diagnostics()
+    diagnostics = window.source_diagnostics_box.toPlainText()
+    assert_true(
+        "[Syntax] Line 4:" in diagnostics and "(code 208)" in diagnostics,
+        f"IDE should report missing paren at line 4\n{diagnostics}",
+    )
+    assert_true(
+        "[Syntax] Line 6:" in diagnostics and "(code 205)" in diagnostics,
+        f"IDE should report missing brace at line 6\n{diagnostics}",
+    )
+    assert_true(
+        diagnostics.count("(code 208)") == 1,
+        f"IDE should not duplicate missing paren diagnostics\n{diagnostics}",
+    )
+
 
 def main() -> None:
     app = QApplication.instance() or QApplication(sys.argv)
@@ -344,6 +419,9 @@ int main()
 
     run_ide_negative_case(window)
     print("PASS IDE negative case")
+
+    run_ide_mapping_cases(window)
+    print("PASS IDE diagnostic mapping cases")
 
     window.close()
     app.quit()

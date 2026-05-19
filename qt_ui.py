@@ -885,7 +885,7 @@ class CompilerQtUI(QMainWindow):
 
     def run_llvm(self, show_done: bool = True) -> None:
         try:
-            content = LLVMConverter(self.load_quads()).convert()
+            content = LLVMConverter(self.load_quads(), input_values=self.interpreter_inputs()).convert()
             self.set_text("LLVM IR", content)
             (self.output_dir() / "llvm_ir.ll").write_text(content, encoding="utf-8")
             if show_done:
@@ -898,8 +898,7 @@ class CompilerQtUI(QMainWindow):
             out = self.output_dir()
             out.mkdir(parents=True, exist_ok=True)
             llvm_path = out / "llvm_ir.ll"
-            if not llvm_path.exists() or not llvm_path.read_text(encoding="utf-8").strip():
-                self.run_llvm(show_done=False)
+            self.run_llvm(show_done=False)
             if not llvm_path.exists() or not llvm_path.read_text(encoding="utf-8").strip():
                 raise RuntimeError("LLVM IR 尚未生成，请先检查输入四元式或源码生成流程。")
 
@@ -1074,7 +1073,7 @@ class CompilerQtUI(QMainWindow):
             "- Step 9 PASS 表示生成的 LLVM IR 已被 clang 接受，并成功编译为目标文件 .obj。\n"
             "- Step 10 PASS 表示该 IR 进一步完成链接并生成 .exe；运行 exe 的 Exit code 可能就是 main 的返回值，不一定必须为 0。\n"
             "- warning 不等于失败；只要 Return code 为 0 且对应文件存在，即可作为验证通过证据。\n"
-            "- read/write 会生成教学用最小运行时桩函数，便于完成链接验证；真实输入输出语义仍以解释器和 Source Verify 为准。\n\n"
+            "- read() 会使用 UI 左侧 read 输入生成的固定输入序列；write() 为教学用最小桩函数，不在控制台打印，但不影响返回值验证。\n\n"
             "Step 9 stdout:\n"
             f"{compile_result.stdout.strip() or '(empty)'}\n\n"
             "Step 9 stderr:\n"

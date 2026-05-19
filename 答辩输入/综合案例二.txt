@@ -1,0 +1,49 @@
+int read();
+void write(int a);
+int fib(int n);
+
+int fib(int n)
+{
+    int a, b, s;
+
+    if (n <= 2) {
+        s = 1;
+    } else {
+        a = fib(n - 1);
+        b = fib(n - 2);
+        s = a + b;
+    }
+
+    return s;
+}
+
+int main()
+{
+    const int ZERO = 0;
+    int n, a, b, c, x, y, z, t, result;
+
+    n = read();
+
+    a = 10;
+    b = 5;
+    c = 2;
+
+    x = a + b;
+    y = b * c;
+    z = a + b;
+    t = x * (a + b);
+    result = t + (b * c);
+
+    result = result + ZERO;
+    result = result * 1;
+    c = c * 0;
+
+    if (result > 100) {
+        result = result + fib(n);
+    } else {
+        result = result + 1;
+    }
+
+    write(result);
+    return result;
+}

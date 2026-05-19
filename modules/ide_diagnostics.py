@@ -74,10 +74,31 @@ class CLikeIdeDiagnostics:
         )
 
         has_blocking_errors = any(item.category in {"Lexical", "Syntax"} for item in diagnostics)
+        diagnostics = self.simplify_diagnostics(diagnostics)
         if not has_blocking_errors:
             diagnostics.extend(self.semantic_checks(source, tokens))
 
-        return sorted(diagnostics, key=lambda item: (item.line, item.category, item.code))
+        return sorted(self.simplify_diagnostics(diagnostics), key=lambda item: (item.line, item.category, item.code))
+
+    def simplify_diagnostics(self, diagnostics: list[Diagnostic]) -> list[Diagnostic]:
+        """Remove noisy duplicates that come from combining lightweight and parser checks."""
+        if not diagnostics:
+            return []
+        by_key: dict[tuple[str, int, int], Diagnostic] = {}
+        for item in diagnostics:
+            by_key[(item.category, item.line, item.code)] = item
+        result = list(by_key.values())
+
+        for code in (208,):
+            syntax_items = [item for item in result if item.category == "Syntax" and item.code == code]
+            if len(syntax_items) <= 1:
+                continue
+            keep = min(syntax_items, key=lambda item: item.line)
+            result = [
+                item for item in result
+                if not (item.category == "Syntax" and item.code == code and item is not keep)
+            ]
+        return result
 
     def lightweight_syntax_checks(self, source: str) -> list[Diagnostic]:
         diagnostics: list[Diagnostic] = []
@@ -194,6 +215,8 @@ class CLikeIdeDiagnostics:
                 continue
             if code == 304 and (line in function_lines or line in visible_function_calls):
                 continue
+            if code == 307:
+                line = self.missing_return_header_line(source, line) or line
             filtered.append((line, code))
         return filtered
 
@@ -290,6 +313,37 @@ class CLikeIdeDiagnostics:
             index = end_index + 1
         return ranges
 
+    def missing_return_header_line(self, source: str, error_line: int) -> int | None:
+        """Move a missing-return diagnostic from the last body line to the function header."""
+        lines = source.splitlines()
+        header = re.compile(r"^\s*(?!void\b)(?:int|float|char)\s+[A-Za-z_]\w*\s*\([^{};]*\)\s*$")
+        index = 0
+        while index < len(lines):
+            if not header.match(self.strip_line_comment(lines[index]).strip()):
+                index += 1
+                continue
+            open_index = index + 1
+            while open_index < len(lines) and not self.strip_line_comment(lines[open_index]).strip():
+                open_index += 1
+            if open_index >= len(lines) or not self.strip_line_comment(lines[open_index]).strip().startswith("{"):
+                index += 1
+                continue
+            depth = 0
+            has_return = False
+            end_index = open_index
+            for scan in range(open_index, len(lines)):
+                code = self.strip_line_comment(lines[scan])
+                if re.search(r"\breturn\b", code):
+                    has_return = True
+                depth += code.count("{") - code.count("}")
+                if depth == 0:
+                    end_index = scan
+                    break
+            if not has_return and index + 1 <= error_line <= end_index + 1:
+                return index + 1
+            index = end_index + 1
+        return None
+
     def render_report(self, diagnostics: list[Diagnostic]) -> str:
         lines = ["IDE Realtime Diagnostics", ""]
         if diagnostics:
@@ -352,12 +406,16 @@ class CLikeIdeDiagnostics:
 
     def semantic_error_message(self, code: int) -> str:
         return {
-            301: "变量必须先初始化或声明后使用",
-            302: "变量重复定义",
-            303: "常量不能被赋值",
-            304: "函数重复定义或声明冲突",
+            301: "变量重复定义",
+            302: "变量未声明或使用前未定义",
+            303: "函数重复定义或声明冲突",
+            304: "函数未声明或调用位置不可见",
             305: "函数调用参数不匹配",
-            307: "非 void 函数必须返回值",
+            306: "函数调用参数类型不匹配",
+            307: "函数缺少 return 或返回值与类型不匹配",
+            308: "break/continue 使用位置不合法",
+            309: "const 常量不能被重新赋值",
+            310: "表达式两侧类型不匹配",
         }.get(code, "语义错误")
 
     def fix_suggestion(self, category: str, code: int) -> str:
@@ -384,10 +442,14 @@ class CLikeIdeDiagnostics:
                 212: "do 语句后补充 while 条件。",
             }.get(code, "检查该行语法结构。")
         return {
-            301: "先声明并初始化变量，再使用变量。",
-            302: "删除重复声明，或改用新的变量名。",
-            303: "不要给 const 常量重新赋值。",
-            304: "检查函数名、返回类型和参数列表是否一致。",
+            301: "删除重复声明，或改用新的变量名。",
+            302: "先声明变量，并确保在当前作用域内可见。",
+            303: "检查函数名、返回类型和参数列表是否与已有声明一致。",
+            304: "先补充函数声明/定义，或把函数定义移动到调用语句之前。",
             305: "检查函数调用实参数量和类型。",
-            307: "给非 void 函数补充 return 语句。",
+            306: "检查实参类型是否与形参类型一致。",
+            307: "非 void 函数补充 return 值；void 函数不要返回具体值。",
+            308: "把 break/continue 放到循环或 switch 结构内部。",
+            309: "不要给 const 常量重新赋值。",
+            310: "检查表达式两侧变量或常量的类型。",
         }.get(code, "检查语义约束。")

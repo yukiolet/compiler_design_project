@@ -1,0 +1,25 @@
+int main()
+{
+    int a
+    int b;
+
+    a = 12abc;
+    b = a + ;
+
+    if (a > 0 {
+        b = b + 1;
+    }
+
+    1 = b;
+
+    @
+
+    char c;
+    c = 'x;
+
+    "hello
+
+    return b;
+}
+
+/* unclosed comment

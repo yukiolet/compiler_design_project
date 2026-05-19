@@ -1,0 +1,42 @@
+int read();
+void write(int x);
+int adjust(int value);
+
+int adjust(int value)
+{
+    int r;
+    r = value + 1;
+    return r;
+}
+
+int main()
+{
+    const int LIMIT = 30;
+    int n, i, sum, temp;
+    n = read();
+    i = 0;
+    sum = 0;
+
+    while (i < n) {
+        i = i + 1;
+
+        if (i == 2) {
+            continue;
+        }
+
+        if (i > LIMIT) {
+            break;
+        }
+
+        temp = adjust(i);
+
+        if (temp > 5) {
+            sum = sum + temp;
+        } else {
+            sum = sum + i;
+        }
+    }
+
+    write(sum);
+    return sum;
+}

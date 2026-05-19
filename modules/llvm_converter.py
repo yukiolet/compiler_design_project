@@ -40,8 +40,9 @@ class FunctionUnit:
 
 
 class LLVMConverter:
-    def __init__(self, quads: list[Quad]):
+    def __init__(self, quads: list[Quad], input_values: list[int] | None = None):
         self.quads = quads
+        self.input_values = list(input_values or [])
         self.temp_counter = 1
         self.cmp_counter = 1
         self.lines: list[str] = []
@@ -316,17 +317,19 @@ class LLVMConverter:
         return declarations
 
     def runtime_prelude(self) -> list[str]:
+        if self.uses_read() and self.input_values:
+            values = ", ".join(f"i32 {value}" for value in self.input_values)
+            size = len(self.input_values)
+            return [
+                f"@__read_values = private constant [{size} x i32] [{values}]",
+                "@__read_index = internal global i32 0",
+            ]
         return []
 
     def runtime_definitions(self) -> list[list[str]]:
         definitions: list[list[str]] = []
         if self.uses_read():
-            definitions.append([
-                "define i32 @read() {",
-                "entry:",
-                "  ret i32 0",
-                "}",
-            ])
+            definitions.append(self.read_runtime_definition())
         if self.uses_write():
             definitions.append([
                 "define void @write(i32 %x) {",
@@ -335,6 +338,33 @@ class LLVMConverter:
                 "}",
             ])
         return definitions
+
+    def read_runtime_definition(self) -> list[str]:
+        if not self.input_values:
+            return [
+                "define i32 @read() {",
+                "entry:",
+                "  ret i32 0",
+                "}",
+            ]
+
+        size = len(self.input_values)
+        return [
+            "define i32 @read() {",
+            "entry:",
+            "  %idx = load i32, ptr @__read_index",
+            f"  %in_bounds = icmp slt i32 %idx, {size}",
+            "  br i1 %in_bounds, label %has_value, label %default",
+            "has_value:",
+            f"  %slot = getelementptr inbounds [{size} x i32], ptr @__read_values, i32 0, i32 %idx",
+            "  %value = load i32, ptr %slot",
+            "  %next = add i32 %idx, 1",
+            "  store i32 %next, ptr @__read_index",
+            "  ret i32 %value",
+            "default:",
+            "  ret i32 0",
+            "}",
+        ]
 
     def uses_read(self) -> bool:
         return any(quad.op == "call" and quad.arg1 == "read" for quad in self.quads)
